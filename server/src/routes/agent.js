@@ -15,7 +15,8 @@ router.post('/status', async (req,res)=>{
   const deviceId=req.header('X-Homey-Device-ID');
   if(!deviceId) return res.status(400).json({error:'X-Homey-Device-ID is required'});
   try {
-    await query(`UPDATE devices SET last_seen_at=now(), updated_at=now() WHERE external_id=$1`,[deviceId]);
+    const result=await query(`UPDATE devices SET last_seen_at=now(), updated_at=now() WHERE external_id=$1 OR serial_number=$1`,[deviceId]);
+    if(result.rowCount===0) return res.status(404).json({error:'Unknown device'});
     res.json({ok:true});
   } catch { res.status(500).json({error:'Unable to update agent status'}); }
 });
