@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS audit_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), actor_user_id UUID REFERENCES users(id), action TEXT NOT NULL,
   resource_type TEXT, resource_id TEXT, ip_address INET, metadata JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS screenshot_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), device_id UUID NOT NULL REFERENCES devices(id), requested_by UUID NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','captured','rejected','expired')),
+  reason TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), completed_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS screenshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), device_id UUID NOT NULL REFERENCES devices(id), request_id UUID REFERENCES screenshot_requests(id),
+  image_url TEXT NOT NULL, captured_at TIMESTAMPTZ NOT NULL DEFAULT now(), admin_name TEXT, source TEXT NOT NULL DEFAULT 'Scalefusion Remote Cast', deleted_at TIMESTAMPTZ
+);
 CREATE INDEX IF NOT EXISTS idx_activity_started ON activity_events(started_at);
 CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_events(user_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
+CREATE INDEX IF NOT EXISTS idx_screenshot_captured ON screenshots(captured_at DESC);
+CREATE INDEX IF NOT EXISTS idx_screenshot_requests_device ON screenshot_requests(device_id, created_at DESC);
