@@ -1,35 +1,60 @@
 import Foundation
 import AppKit
+import Security
 
-struct Config {
+struct Config: Codable {
     let apiURL: URL
     let deviceID: String
-    let agentToken: String
     let enabled: Bool
-    let minInterval: TimeInterval
-    let maxInterval: TimeInterval
+    let minIntervalMinutes: Double
+    let maxIntervalMinutes: Double
     let retentionDays: Int
 
     static func load() -> Config? {
         let env = ProcessInfo.processInfo.environment
+        let path = env["HOMEY_CONFIG_PATH"] ?? "\(NSHomeDirectory())/Library/Application Support/Homey Work Insights/config.json"
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           let config = try? JSONDecoder().decode(Config.self, from: data) {
+            return config
+        }
         guard let rawURL = env["HOMEY_API_URL"], let url = URL(string: rawURL),
-              let deviceID = env["HOMEY_DEVICE_ID"], let token = env["HOMEY_AGENT_TOKEN"] else { return nil }
+              let deviceID = env["HOMEY_DEVICE_ID"] else { return nil }
         let enabled = env["SCREENSHOT_MONITORING_ENABLED"]?.lowercased() == "true"
-        let min = Double(env["SCREENSHOT_MIN_INTERVAL_MINUTES"] ?? "20") ?? 20
-        let max = Double(env["SCREENSHOT_MAX_INTERVAL_MINUTES"] ?? "40") ?? 40
-        let retention = Int(env["SCREENSHOT_RETENTION_DAYS"] ?? "30") ?? 30
-        return Config(apiURL: url, deviceID: deviceID, agentToken: token, enabled: enabled,
-                      minInterval: max(1, min), maxInterval: max(min, max), retentionDays: max(1, retention))
+        return Config(apiURL: url, deviceID: deviceID, enabled: enabled,
+                      minIntervalMinutes: Double(env["SCREENSHOT_MIN_INTERVAL_MINUTES"] ?? "20") ?? 20,
+                      maxIntervalMinutes: Double(env["SCREENSHOT_MAX_INTERVAL_MINUTES"] ?? "40") ?? 40,
+                      retentionDays: Int(env["SCREENSHOT_RETENTION_DAYS"] ?? "30") ?? 30)
+    }
+}
+
+final class KeychainToken {
+    static let service = "com.homey.work-insights.agent.token"
+
+    static func read() -> String? {
+        let account = NSUserName()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }
 
 final class HomeyAgent {
     private let config: Config
+    private let token: String
     private let session: URLSession
     private var timer: Timer?
 
-    init(config: Config) {
+    init(config: Config, token: String) {
         self.config = config
+        self.token = token
         self.session = URLSession(configuration: .ephemeral)
     }
 
@@ -40,7 +65,9 @@ final class HomeyAgent {
     }
 
     private func scheduleNextCapture() {
-        let seconds = Double.random(in: config.minInterval * 60 ... config.maxInterval * 60)
+        let min = max(1, config.minIntervalMinutes)
+        let max = max(min, config.maxIntervalMinutes)
+        let seconds = Double.random(in: min * 60 ... max * 60)
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             self?.captureAndUpload()
@@ -49,14 +76,12 @@ final class HomeyAgent {
     }
 
     private func captureAndUpload() {
-        // macOS itself decides whether Screen Recording permission is available.
         let task = Process()
         let errorPipe = Pipe()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent("homey-\(UUID().uuidString).png")
         task.arguments = ["-x", temp.path]
         task.standardError = errorPipe
-
         do {
             try task.run()
             task.waitUntilExit()
@@ -78,10 +103,9 @@ final class HomeyAgent {
         request.httpMethod = "POST"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.setValue(config.deviceID, forHTTPHeaderField: "X-Homey-Device-ID")
-        request.setValue(config.agentToken, forHTTPHeaderField: "X-Homey-Agent-Token")
+        request.setValue(token, forHTTPHeaderField: "X-Homey-Agent-Token")
         request.setValue("1.0.0", forHTTPHeaderField: "X-Homey-Agent-Version")
         request.httpBody = data
-
         session.dataTask(with: request) { [weak self] _, response, _ in
             try? FileManager.default.removeItem(at: file)
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
@@ -96,7 +120,7 @@ final class HomeyAgent {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(config.deviceID, forHTTPHeaderField: "X-Homey-Device-ID")
-        request.setValue(config.agentToken, forHTTPHeaderField: "X-Homey-Agent-Token")
+        request.setValue(token, forHTTPHeaderField: "X-Homey-Agent-Token")
         request.httpBody = try? JSONSerialization.data(withJSONObject: [
             "status": status,
             "agentVersion": "1.0.0",
@@ -108,10 +132,10 @@ final class HomeyAgent {
     }
 }
 
-if let config = Config.load() {
-    HomeyAgent(config: config).start()
+if let config = Config.load(), let token = KeychainToken.read() {
+    HomeyAgent(config: config, token: token).start()
     RunLoop.main.run()
 } else {
-    fputs("HomeyAgent: HOMEY_API_URL, HOMEY_DEVICE_ID or HOMEY_AGENT_TOKEN missing\n", stderr)
+    fputs("HomeyAgent: configuration or Keychain token missing\n", stderr)
     exit(2)
 }
