@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>PayloadContent</key><array><dict>
+<key>PayloadType</key><string>com.apple.TCC.configuration-profile-policy</string>
+<key>PayloadIdentifier</key><string>com.homey.work-insights.pppc.tcc</string>
+<key>PayloadUUID</key><string>4C0B3A3A-0C8C-4E4C-AFC7-1E2A8A6C5E01</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadDisplayName</key><string>Homey Work Insights Screen Recording</string>
+<key>Services</key><dict><key>ScreenCapture</key><array><dict>
+<key>Identifier</key><string>com.homey.work-insights.agent</string>
+<key>IdentifierType</key><string>bundleID</string>
+<key>CodeRequirement</key><string>identifier "com.homey.work-insights.agent" and anchor apple generic and certificate leaf[subject.OU] = REPLACE_WITH_HOMEY_TEAM_ID</string>
+<key>Authorization</key><string>Allow</string>
+<key>Comment</key><string>Homey Work Insights managed screen recording</string>
+<key>StaticCode</key><false/>
+</dict></array></dict>
+</dict></array>
+<key>PayloadType</key><string>Configuration</string>
+<key>PayloadIdentifier</key><string>com.homey.work-insights.pppc</string>
+<key>PayloadUUID</key><string>0E8D3A53-6D3A-4F7C-A7A8-5C6AAB7B8E11</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadDisplayName</key><string>Homey Work Insights Privacy Controls</string>
+<key>PayloadOrganization</key><string>Homey Technology Ltd</string>
+<key>PayloadScope</key><string>System</string>
+</dict></plist>
