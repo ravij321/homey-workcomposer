@@ -1,8 +1,9 @@
 [build]
-builder = "RAILPACK"
+builder = "DOCKERFILE"
+dockerfilePath = "/client/Dockerfile"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "npm --prefix client run preview -- --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
