@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "/client/Dockerfile"
 
 [deploy]
-startCommand = "npm --prefix client run preview -- --host 0.0.0.0 --port $PORT"
+startCommand = "npm run preview -- --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
