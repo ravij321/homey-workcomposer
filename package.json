@@ -1,0 +1,8 @@
+{
+  "name": "homey-work-insights",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix server start",
+    "build": "npm --prefix server install"
+  }
+}
