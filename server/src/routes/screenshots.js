@@ -26,14 +26,13 @@ router.post('/capture-request', requireAuth, requireRole('admin'), async(req,res
   } catch { res.status(500).json({error:'Unable to create screenshot request'}); }
 });
 
-// Managed endpoint upload. Device authentication is separate from dashboard authentication.
 router.post('/agent-upload', async(req,res)=>{
   const deviceId=req.header('X-Homey-Device-ID');
   const token=req.header('X-Homey-Agent-Token');
   const expected=process.env.HOMEY_AGENT_TOKEN;
   if(!deviceId || !token || !expected || token.length!==expected.length || !crypto.timingSafeEqual(Buffer.from(token),Buffer.from(expected))) return res.status(401).json({error:'Unauthorized agent'});
   try {
-    const device=await query(`SELECT id FROM devices WHERE external_id=$1 LIMIT 1`,[deviceId]);
+    const device=await query(`SELECT id FROM devices WHERE external_id=$1 OR serial_number=$1 LIMIT 1`,[deviceId]);
     if(!device.rows[0]) return res.status(404).json({error:'Unknown device'});
     const body=req.body;
     if(!Buffer.isBuffer(body) || body.length===0 || body.length>20*1024*1024) return res.status(400).json({error:'Invalid screenshot payload'});
