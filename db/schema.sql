@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS departments (
 );
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('employee','manager','admin')), department_id UUID REFERENCES departments(id),
-  active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  password_hash TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('employee','manager','admin')),
+  department_id UUID REFERENCES departments(id), active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS devices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), external_id TEXT UNIQUE, serial_number TEXT UNIQUE,
