@@ -1,0 +1,2 @@
+export const ROLES={employee:['dashboard:read','activity:read:self'],manager:['dashboard:read','activity:read','devices:read'],admin:['dashboard:read','activity:read','devices:read','devices:sync','screenshots:read','screenshots:request','audit:read','users:manage']};
+export function requireRole(...allowed){return(req,res,next)=>{if(!req.auth||!allowed.includes(req.auth.role))return res.status(403).json({error:'Insufficient permissions'});next()}}
