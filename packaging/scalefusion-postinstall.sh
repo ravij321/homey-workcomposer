@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Scalefusion Enterprise Store post-install script.
 # Configure this as the PKG Post-Install Script and enable dynamic custom-property expansion.
-# Scalefusion replaces %$device.*% placeholders at execution time.
 
 API_URL='%$device.homey_api_url%'
 AGENT_TOKEN='%$device.homey_agent_token%'
@@ -21,22 +20,24 @@ KEYCHAIN_SERVICE='com.homey.work-insights.agent.token'
 [[ "$API_URL" == https://* ]] || { echo 'homey_api_url must use HTTPS' >&2; exit 1; }
 [[ "$AGENT_TOKEN" != '%$device.homey_agent_token%' && -n "$AGENT_TOKEN" ]] || { echo 'homey_agent_token custom property is missing' >&2; exit 1; }
 
-# This script is intended to run as the signed-in user in Scalefusion.
+# Run this Scalefusion post-install script as the signed-in user.
 USER_NAME="${USER:-$(id -un)}"
 USER_ID="$(id -u)"
 HOME_DIR="${HOME:-$(dscl . -read /Users/$USER_NAME NFSHomeDirectory | awk '{print $2}')}"
+DEVICE_SERIAL="$(ioreg -rd1 -c IOPlatformExpertDevice | awk -F\" '/IOPlatformSerialNumber/{print $(NF-1); exit}')"
+[[ -n "$DEVICE_SERIAL" ]] || { echo 'Unable to determine Mac serial number' >&2; exit 1; }
 
 mkdir -p "$HOME_DIR/Library/Application Support/Homey Work Insights"
 chmod 700 "$HOME_DIR/Library/Application Support/Homey Work Insights"
 
-# Store the device token in the user's login keychain. The agent retrieves it at runtime.
+# Store the per-device token in the signed-in user's login keychain.
 security delete-generic-password -s "$KEYCHAIN_SERVICE" -a "$USER_NAME" >/dev/null 2>&1 || true
 security add-generic-password -s "$KEYCHAIN_SERVICE" -a "$USER_NAME" -w "$AGENT_TOKEN" -T "$BINARY" >/dev/null
 
 cat > "$HOME_DIR/Library/Application Support/Homey Work Insights/config.json" <<JSON
 {
   "apiURL": "${API_URL}",
-  "deviceID": "$(ioreg -rd1 -c IOPlatformExpertDevice | awk -F\" '/IOPlatformUUID/{print $(NF-1); exit}')",
+  "deviceID": "${DEVICE_SERIAL}",
   "enabled": ${ENABLED:-false},
   "minIntervalMinutes": ${MIN_MINUTES:-20},
   "maxIntervalMinutes": ${MAX_MINUTES:-40},
@@ -67,7 +68,6 @@ launchctl bootstrap "gui/${USER_ID}" "$HOME_DIR/Library/LaunchAgents/${SERVICE}.
 launchctl enable "gui/${USER_ID}/${SERVICE}"
 launchctl kickstart -k "gui/${USER_ID}/${SERVICE}"
 
-# Emit a useful status for Scalefusion's script result panel.
 echo "Homey Work Insights installed and launched for ${USER_NAME}."
-echo "Device ID: $(ioreg -rd1 -c IOPlatformExpertDevice | awk -F\" '/IOPlatformUUID/{print $(NF-1); exit}')"
+echo "Device serial: ${DEVICE_SERIAL}"
 echo "Screenshot monitoring: ${ENABLED:-false}"
