@@ -1,0 +1,3 @@
+const BASE=process.env.SCALEFUSION_BASE_URL||'https://api.scalefusion.com';
+export async function scalefusionRequest(path,options={}){if(!process.env.SCALEFUSION_API_TOKEN)throw new Error('SCALEFUSION_API_TOKEN is not configured');const r=await fetch(`${BASE}${path}`,{...options,headers:{Accept:'application/json',Authorization:`Bearer ${process.env.SCALEFUSION_API_TOKEN}`,...(options.headers||{})}});if(!r.ok)throw new Error(`Scalefusion request failed: ${r.status}`);return r.json()}
+export async function fetchDevices(){return scalefusionRequest(process.env.SCALEFUSION_DEVICES_PATH||'/api/v2/devices')}
