@@ -7,6 +7,7 @@ import agent from './routes/agent.js';
 import audit from './routes/audit.js';
 import health from './routes/health.js';
 import analytics from './routes/analytics.js';
+import enrollmentKeys from './routes/enrollment-keys.js';
 import { requireAuth } from './auth.js';
 import { query } from './db.js';
 
@@ -18,17 +19,12 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use('/api/screenshots/agent-upload', express.raw({ type: 'application/octet-stream', limit: '20mb' }));
 app.use(express.json({ limit: '1mb' }));
 
-// Public service endpoints.
 app.get('/', (_req, res) => {
   res.json({
     name: 'Homey Work Insights API',
     status: 'online',
     version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      dashboard: '/api/dashboard',
-      devices: '/api/devices'
-    }
+    endpoints: { health: '/api/health', dashboard: '/api/dashboard', devices: '/api/devices' }
   });
 });
 
@@ -41,6 +37,7 @@ app.use('/api/agent', agent);
 app.use('/api/audit', audit);
 app.use('/api/health', health);
 app.use('/api/analytics', analytics);
+app.use('/api/enrollment-keys', enrollmentKeys);
 
 app.get('/api/dashboard', requireAuth, async (_req, res) => {
   try {
@@ -51,13 +48,7 @@ app.get('/api/dashboard', requireAuth, async (_req, res) => {
       query("SELECT COALESCE(round(sum(duration_minutes)/60.0,1),0) value FROM activity_events WHERE started_at>=now()-interval '7 days'"),
       query("SELECT COALESCE(round(100.0*count(*) FILTER(WHERE status='compliant')/NULLIF(count(*),0),1),0) value FROM devices")
     ]);
-    res.json({ kpis: {
-      users: u.rows[0].value,
-      devices: d.rows[0].value,
-      activeDevices: a.rows[0].value,
-      activityHours: Number(h.rows[0].value),
-      compliance: Number(c.rows[0].value)
-    }});
+    res.json({ kpis: { users: u.rows[0].value, devices: d.rows[0].value, activeDevices: a.rows[0].value, activityHours: Number(h.rows[0].value), compliance: Number(c.rows[0].value) }});
   } catch {
     res.status(503).json({ error: 'Database unavailable' });
   }
