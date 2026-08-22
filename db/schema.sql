@@ -36,8 +36,14 @@ CREATE TABLE IF NOT EXISTS screenshots (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), device_id UUID NOT NULL REFERENCES devices(id), request_id UUID REFERENCES screenshot_requests(id),
   image_url TEXT NOT NULL, captured_at TIMESTAMPTZ NOT NULL DEFAULT now(), admin_name TEXT, source TEXT NOT NULL DEFAULT 'Scalefusion Remote Cast', deleted_at TIMESTAMPTZ
 );
+CREATE TABLE IF NOT EXISTS enrollment_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), key_hash TEXT NOT NULL UNIQUE, key_hint TEXT NOT NULL,
+  created_by UUID REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ
+);
 CREATE INDEX IF NOT EXISTS idx_activity_started ON activity_events(started_at);
 CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_events(user_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
 CREATE INDEX IF NOT EXISTS idx_screenshot_captured ON screenshots(captured_at DESC);
 CREATE INDEX IF NOT EXISTS idx_screenshot_requests_device ON screenshot_requests(device_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_enrollment_keys_active ON enrollment_keys(expires_at, revoked_at, used_at);
