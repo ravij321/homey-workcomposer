@@ -6,7 +6,7 @@ on:
       version:
         description: Version to build
         required: true
-        default: 1.0.1
+        default: 1.0.2
   push:
     paths:
       - 'agent/**'
@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
     env:
-      VERSION: ${{ github.event.inputs.version || '1.0.1' }}
+      VERSION: ${{ github.event.inputs.version || '1.0.2' }}
       IDENTIFIER: com.homey.workinsights.agent
 
     steps:
@@ -54,9 +54,12 @@ jobs:
           {
             "apiURL": "https://homey-api-production.up.railway.app",
             "deviceID": "",
+            "agentToken": "",
             "heartbeatSeconds": 300,
-            "collectApplicationUsage": false,
-            "screenshotMonitoringEnabled": false
+            "collectApplicationUsage": true,
+            "screenshotMonitoringEnabled": false,
+            "activityIntervalSeconds": 60,
+            "idleThresholdSeconds": 300
           }
           JSON
           chmod 600 "build/payload/Library/Application Support/HomeyWorkInsights/config.json"
