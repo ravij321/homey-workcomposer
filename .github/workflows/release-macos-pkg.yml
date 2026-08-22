@@ -1,0 +1,60 @@
+name: Release signed Homey macOS PKG
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version
+        required: true
+        default: 1.0.0
+
+jobs:
+  release:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      DEVELOPER_ID_INSTALLER: ${{ secrets.DEVELOPER_ID_INSTALLER }}
+      NOTARY_PROFILE: homey-notary
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import Apple Developer signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+          keychain-password: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: Configure notarization profile
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Build, sign and notarize PKG
+        run: |
+          chmod +x packaging/build-pkg.sh
+          ./packaging/build-pkg.sh
+
+      - name: Verify signed package
+        run: |
+          pkgutil --check-signature "dist/HomeyWorkInsights-${VERSION}.pkg"
+          spctl -a -vv -t install "dist/HomeyWorkInsights-${VERSION}.pkg"
+
+      - name: Publish release artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Homey Work Insights ${{ env.VERSION }}
+          generate_release_notes: true
+          files: dist/HomeyWorkInsights-${{ env.VERSION }}.pkg
