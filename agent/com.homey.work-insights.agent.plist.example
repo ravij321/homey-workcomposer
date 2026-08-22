@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.homey.work-insights.agent</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/local/bin/HomeyAgent</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOMEY_API_URL</key><string>https://work-insights.homey.example</string>
+    <key>HOMEY_DEVICE_ID</key><string>REPLACE_DEVICE_ID</string>
+    <key>HOMEY_AGENT_TOKEN</key><string>REPLACE_DEVICE_TOKEN</string>
+    <key>SCREENSHOT_MONITORING_ENABLED</key><string>false</string>
+    <key>SCREENSHOT_MIN_INTERVAL_MINUTES</key><string>20</string>
+    <key>SCREENSHOT_MAX_INTERVAL_MINUTES</key><string>40</string>
+    <key>SCREENSHOT_RETENTION_DAYS</key><string>30</string>
+  </dict>
+</dict>
+</plist>
