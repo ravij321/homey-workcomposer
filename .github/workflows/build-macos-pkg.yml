@@ -1,0 +1,53 @@
+name: Build Homey macOS PKG
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build
+        required: true
+        default: 1.0.0
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  package:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize version
+        run: |
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build PKG
+        run: |
+          chmod +x packaging/build-pkg.sh
+          ./packaging/build-pkg.sh
+
+      - name: Validate package
+        run: |
+          pkgutil --check-signature "dist/HomeyWorkInsights-${VERSION}.pkg" || true
+          pkgutil --payload-files "dist/HomeyWorkInsights-${VERSION}.pkg" | head -100
+
+      - name: Upload PKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HomeyWorkInsights-${{ env.VERSION }}
+          path: dist/HomeyWorkInsights-${{ env.VERSION }}.pkg
+          if-no-files-found: error
+
+      - name: Create GitHub release for tag builds
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/HomeyWorkInsights-${{ env.VERSION }}.pkg
+          generate_release_notes: true
