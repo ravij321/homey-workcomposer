@@ -58,15 +58,14 @@ func loadConfig() throws -> AgentConfig {
     return try JSONDecoder().decode(AgentConfig.self, from: data)
 }
 
-@main
-struct Main {
-    static func main() async {
-        do {
-            let config = try loadConfig()
-            await HomeyAgent(config: config).run()
-        } catch {
-            FileHandle.standardError.write(Data("HomeyAgent configuration error: \(error)\n".utf8))
-            exit(1)
-        }
+Task {
+    do {
+        let config = try loadConfig()
+        await HomeyAgent(config: config).run()
+    } catch {
+        FileHandle.standardError.write(Data("HomeyAgent configuration error: \(error)\n".utf8))
+        exit(1)
     }
 }
+
+RunLoop.main.run()
