@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: homey
+      POSTGRES_USER: homey
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homey -d homey"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./server
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://homey:change-me@db:5432/homey
+      JWT_SECRET: change-me-in-production
+      SCALEFUSION_API_TOKEN: ${SCALEFUSION_API_TOKEN}
+      SCALEFUSION_API_URL: ${SCALEFUSION_API_URL:-https://api.scalefusion.com}
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
