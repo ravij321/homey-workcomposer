@@ -1,0 +1,7 @@
+{
+  "apiURL": "https://homey-api-production.up.railway.app",
+  "deviceID": "REPLACE_WITH_DEVICE_ID",
+  "heartbeatSeconds": 60,
+  "collectApplicationUsage": false,
+  "screenshotMonitoringEnabled": false
+}
