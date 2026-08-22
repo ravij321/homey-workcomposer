@@ -34,27 +34,23 @@ jobs:
           set -euo pipefail
           rm -rf build dist
           mkdir -p build/arm64 build/x86_64
-          xcrun --sdk macosx swiftc -O -target arm64-apple-macos13.0 \
-            agent/HomeyAgent.swift -o build/arm64/HomeyAgent
-          xcrun --sdk macosx swiftc -O -target x86_64-apple-macos13.0 \
-            agent/HomeyAgent.swift -o build/x86_64/HomeyAgent
-          mkdir -p build/payload/Library/Application\ Support/HomeyWorkInsights
+          xcrun --sdk macosx swiftc -O -target arm64-apple-macos13.0 agent/HomeyAgent.swift -o build/arm64/HomeyAgent
+          xcrun --sdk macosx swiftc -O -target x86_64-apple-macos13.0 agent/HomeyAgent.swift -o build/x86_64/HomeyAgent
+          mkdir -p "build/payload/Library/Application Support/HomeyWorkInsights"
           mkdir -p build/payload/Library/LaunchDaemons
           mkdir -p build/payload/Library/Logs/HomeyWorkInsights
-          lipo -create build/arm64/HomeyAgent build/x86_64/HomeyAgent \
-            -output build/payload/Library/Application\ Support/HomeyWorkInsights/HomeyAgent
-          chmod 755 build/payload/Library/Application\ Support/HomeyWorkInsights/HomeyAgent
+          lipo -create build/arm64/HomeyAgent build/x86_64/HomeyAgent -output "build/payload/Library/Application Support/HomeyWorkInsights/HomeyAgent"
+          chmod 755 "build/payload/Library/Application Support/HomeyWorkInsights/HomeyAgent"
 
       - name: Add LaunchDaemon
         run: |
-          cp packaging/com.homey.workinsights.agent.plist \
-            build/payload/Library/LaunchDaemons/com.homey.workinsights.agent.plist
+          cp packaging/com.homey.workinsights.agent.plist build/payload/Library/LaunchDaemons/com.homey.workinsights.agent.plist
           chmod 644 build/payload/Library/LaunchDaemons/com.homey.workinsights.agent.plist
 
       - name: Add managed configuration
         shell: bash
         run: |
-          cat > build/payload/Library/Application\ Support/HomeyWorkInsights/config.json <<'JSON'
+          cat > "build/payload/Library/Application Support/HomeyWorkInsights/config.json" <<'JSON'
           {
             "apiURL": "https://homey-api-production.up.railway.app",
             "deviceID": "",
@@ -63,7 +59,7 @@ jobs:
             "screenshotMonitoringEnabled": false
           }
           JSON
-          chmod 600 build/payload/Library/Application\ Support/HomeyWorkInsights/config.json
+          chmod 600 "build/payload/Library/Application Support/HomeyWorkInsights/config.json"
 
       - name: Add postinstall script
         shell: bash
@@ -98,13 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkgbuild \
-            --root build/payload \
-            --scripts build/scripts \
-            --identifier "$IDENTIFIER" \
-            --version "$VERSION" \
-            --install-location / \
-            "HomeyWorkInsightsAgent-$VERSION.pkg"
+          pkgbuild --root build/payload --scripts build/scripts --identifier "$IDENTIFIER" --version "$VERSION" --install-location / "HomeyWorkInsightsAgent-$VERSION.pkg"
           pkgutil --check-signature "HomeyWorkInsightsAgent-$VERSION.pkg" || true
           pkgutil --payload-files "HomeyWorkInsightsAgent-$VERSION.pkg"
           file "HomeyWorkInsightsAgent-$VERSION.pkg"
