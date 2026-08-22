@@ -14,12 +14,21 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: HOMEY_AGENT_TOKEN
+        sync: false
+      - key: SCREENSHOT_STORAGE_PATH
+        value: /var/data/screenshots
       - key: SCALEFUSION_API_TOKEN
         sync: false
       - key: SCALEFUSION_API_URL
         value: https://api.scalefusion.com
       - key: CORS_ORIGIN
         sync: false
+    disk:
+      name: homey-screenshots
+      mountPath: /var/data
+      sizeGB: 10
+
   - type: web
     name: homey-work-insights-web
     runtime: static
