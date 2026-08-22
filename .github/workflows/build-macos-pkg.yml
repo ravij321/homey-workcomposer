@@ -6,48 +6,113 @@ on:
       version:
         description: Version to build
         required: true
-        default: 1.0.0
+        default: 1.0.1
   push:
-    tags:
-      - 'v*'
+    paths:
+      - 'agent/**'
+      - 'packaging/**'
+      - '.github/workflows/build-macos-pkg.yml'
+    branches:
+      - main
 
 jobs:
   package:
     runs-on: macos-14
     permissions:
-      contents: write
+      contents: read
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      VERSION: ${{ github.event.inputs.version || '1.0.1' }}
+      IDENTIFIER: com.homey.workinsights.agent
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Normalize version
+      - name: Build universal Swift agent
+        shell: bash
         run: |
-          VERSION="${VERSION#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          set -euo pipefail
+          rm -rf build dist
+          mkdir -p build/arm64 build/x86_64
+          xcrun --sdk macosx swiftc -O -target arm64-apple-macos13.0 \
+            agent/HomeyAgent.swift -o build/arm64/HomeyAgent
+          xcrun --sdk macosx swiftc -O -target x86_64-apple-macos13.0 \
+            agent/HomeyAgent.swift -o build/x86_64/HomeyAgent
+          mkdir -p build/payload/Library/Application\ Support/HomeyWorkInsights
+          mkdir -p build/payload/Library/LaunchDaemons
+          mkdir -p build/payload/Library/Logs/HomeyWorkInsights
+          lipo -create build/arm64/HomeyAgent build/x86_64/HomeyAgent \
+            -output build/payload/Library/Application\ Support/HomeyWorkInsights/HomeyAgent
+          chmod 755 build/payload/Library/Application\ Support/HomeyWorkInsights/HomeyAgent
 
-      - name: Build PKG
+      - name: Add LaunchDaemon
         run: |
-          chmod +x packaging/build-pkg.sh
-          ./packaging/build-pkg.sh
+          cp packaging/com.homey.workinsights.agent.plist \
+            build/payload/Library/LaunchDaemons/com.homey.workinsights.agent.plist
+          chmod 644 build/payload/Library/LaunchDaemons/com.homey.workinsights.agent.plist
 
-      - name: Validate package
+      - name: Add managed configuration
+        shell: bash
         run: |
-          pkgutil --check-signature "dist/HomeyWorkInsights-${VERSION}.pkg" || true
-          pkgutil --payload-files "dist/HomeyWorkInsights-${VERSION}.pkg" | head -100
+          cat > build/payload/Library/Application\ Support/HomeyWorkInsights/config.json <<'JSON'
+          {
+            "apiURL": "https://homey-api-production.up.railway.app",
+            "deviceID": "",
+            "heartbeatSeconds": 300,
+            "collectApplicationUsage": false,
+            "screenshotMonitoringEnabled": false
+          }
+          JSON
+          chmod 600 build/payload/Library/Application\ Support/HomeyWorkInsights/config.json
+
+      - name: Add postinstall script
+        shell: bash
+        run: |
+          mkdir -p build/scripts
+          cat > build/scripts/postinstall <<'SH'
+          #!/bin/bash
+          set -euo pipefail
+          APP="/Library/Application Support/HomeyWorkInsights"
+          CFG="$APP/config.json"
+          PLIST="/Library/LaunchDaemons/com.homey.workinsights.agent.plist"
+          LOGDIR="/Library/Logs/HomeyWorkInsights"
+          mkdir -p "$APP" "$LOGDIR"
+          chown -R root:wheel "$APP" "$LOGDIR"
+          chmod 755 "$APP" "$LOGDIR"
+          /usr/bin/python3 - "$CFG" <<'PY'
+          import json, os, sys, uuid
+          p=sys.argv[1]
+          with open(p) as f: c=json.load(f)
+          c['deviceID']=c.get('deviceID') or str(uuid.uuid4())
+          with open(p,'w') as f: json.dump(c,f,indent=2)
+          os.chmod(p,0o600)
+          PY
+          /bin/launchctl bootout system/com.homey.workinsights.agent 2>/dev/null || true
+          /bin/launchctl bootstrap system "$PLIST"
+          /bin/launchctl enable system/com.homey.workinsights.agent
+          /bin/launchctl kickstart -k system/com.homey.workinsights.agent
+          SH
+          chmod 755 build/scripts/postinstall
+
+      - name: Build real macOS installer package
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkgbuild \
+            --root build/payload \
+            --scripts build/scripts \
+            --identifier "$IDENTIFIER" \
+            --version "$VERSION" \
+            --install-location / \
+            "HomeyWorkInsightsAgent-$VERSION.pkg"
+          pkgutil --check-signature "HomeyWorkInsightsAgent-$VERSION.pkg" || true
+          pkgutil --payload-files "HomeyWorkInsightsAgent-$VERSION.pkg"
+          file "HomeyWorkInsightsAgent-$VERSION.pkg"
+          shasum -a 256 "HomeyWorkInsightsAgent-$VERSION.pkg"
 
       - name: Upload PKG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HomeyWorkInsights-${{ env.VERSION }}
-          path: dist/HomeyWorkInsights-${{ env.VERSION }}.pkg
+          name: HomeyWorkInsightsAgent-${{ env.VERSION }}
+          path: HomeyWorkInsightsAgent-${{ env.VERSION }}.pkg
           if-no-files-found: error
-
-      - name: Create GitHub release for tag builds
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/HomeyWorkInsights-${{ env.VERSION }}.pkg
-          generate_release_notes: true
