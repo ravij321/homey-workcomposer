@@ -10,59 +10,14 @@ import analytics from './routes/analytics.js';
 import enrollmentKeys from './routes/enrollment-keys.js';
 import { requireAuth } from './auth.js';
 import { query } from './db.js';
-
-const app = express();
-const port = process.env.PORT || 4000;
-
-app.disable('x-powered-by');
-app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
-app.use('/api/screenshots/agent-upload', express.raw({ type: 'application/octet-stream', limit: '20mb' }));
-app.use(express.json({ limit: '1mb' }));
-
-app.get('/', (_req, res) => {
-  res.json({
-    name: 'Homey Work Insights API',
-    status: 'online',
-    version: '1.0.0',
-    endpoints: { health: '/api/health', dashboard: '/api/dashboard', devices: '/api/devices' }
-  });
-});
-
-app.get('/favicon.ico', (_req, res) => res.status(204).end());
-
-app.use('/api/auth', auth);
-app.use('/api/integrations', integrations);
-app.use('/api/screenshots', screenshots);
-app.use('/api/agent', agent);
-app.use('/api/audit', audit);
-app.use('/api/health', health);
-app.use('/api/analytics', analytics);
-app.use('/api/enrollment-keys', enrollmentKeys);
-
-app.get('/api/dashboard', requireAuth, async (_req, res) => {
-  try {
-    const [u, d, a, h, c] = await Promise.all([
-      query('SELECT count(*)::int value FROM users WHERE active=true'),
-      query('SELECT count(*)::int value FROM devices'),
-      query("SELECT count(*)::int value FROM devices WHERE status='compliant'"),
-      query("SELECT COALESCE(round(sum(duration_minutes)/60.0,1),0) value FROM activity_events WHERE started_at>=now()-interval '7 days'"),
-      query("SELECT COALESCE(round(100.0*count(*) FILTER(WHERE status='compliant')/NULLIF(count(*),0),1),0) value FROM devices")
-    ]);
-    res.json({ kpis: { users: u.rows[0].value, devices: d.rows[0].value, activeDevices: a.rows[0].value, activityHours: Number(h.rows[0].value), compliance: Number(c.rows[0].value) }});
-  } catch {
-    res.status(503).json({ error: 'Database unavailable' });
-  }
-});
-
-app.get('/api/devices', requireAuth, async (_req, res) => {
-  try {
-    const x = await query(`SELECT d.id,d.external_id,d.serial_number,d.name,d.os,d.os_version,d.status,d.mdm_source,d.last_seen_at,u.name user_name FROM devices d LEFT JOIN users u ON u.id=d.user_id ORDER BY d.updated_at DESC`);
-    res.json({ devices: x.rows });
-  } catch {
-    res.status(503).json({ error: 'Database unavailable' });
-  }
-});
-
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
-
-app.listen(port, () => console.log(`Homey Work Insights API listening on ${port}`));
+const app=express(),port=process.env.PORT||4000;
+app.disable('x-powered-by');app.use(cors({origin:process.env.CORS_ORIGIN||true}));app.use('/api/screenshots/agent-upload',express.raw({type:'application/octet-stream',limit:'20mb'}));app.use(express.json({limit:'2mb'}));
+app.get('/',(_req,res)=>res.json({name:'Homey Work Insights API',status:'online',version:'1.1.0',endpoints:{health:'/api/health',dashboard:'/api/dashboard',devices:'/api/devices',users:'/api/users'}}));app.get('/favicon.ico',(_req,res)=>res.status(204).end());
+app.use('/api/auth',auth);app.use('/api/integrations',integrations);app.use('/api/screenshots',screenshots);app.use('/api/agent',agent);app.use('/api/audit',audit);app.use('/api/health',health);app.use('/api/analytics',analytics);app.use('/api/enrollment-keys',enrollmentKeys);
+app.get('/api/dashboard',requireAuth,async(_req,res)=>{try{const[u,d,a,h,c]=await Promise.all([query('SELECT count(*)::int value FROM users WHERE active=true'),query('SELECT count(*)::int value FROM devices'),query("SELECT count(*)::int value FROM devices WHERE status='compliant'"),query("SELECT COALESCE(round(sum(duration_minutes)/60.0,1),0) value FROM activity_events WHERE started_at>=now()-interval '7 days'"),query("SELECT COALESCE(round(100.0*count(*) FILTER(WHERE status='compliant')/NULLIF(count(*),0),1),0) value FROM devices")]);res.json({kpis:{users:u.rows[0].value,devices:d.rows[0].value,activeDevices:a.rows[0].value,activityHours:Number(h.rows[0].value),compliance:Number(c.rows[0].value)}})}catch{res.status(503).json({error:'Database unavailable'})}});
+app.get('/api/devices',requireAuth,async(_req,res)=>{try{const x=await query(`SELECT d.id,d.external_id,d.serial_number,d.name,d.os,d.os_version,d.status,d.mdm_source,d.last_seen_at,u.name user_name FROM devices d LEFT JOIN users u ON u.id=d.user_id ORDER BY d.updated_at DESC`);res.json({devices:x.rows})}catch{res.status(503).json({error:'Database unavailable'})}});
+app.get('/api/users',requireAuth,async(_req,res)=>{try{const x=await query(`SELECT u.id,u.name,u.email,u.active,u.job_title,u.manager_email,u.start_date,COALESCE(dp.name,'Unassigned') department,d.name device,d.status FROM users u LEFT JOIN departments dp ON dp.id=u.department_id LEFT JOIN devices d ON d.user_id=u.id ORDER BY u.name`);res.json({users:x.rows})}catch(e){res.status(503).json({error:'User directory unavailable'})}});
+async function upsertUser(u){if(!u.name||!u.email||!u.department)throw new Error('Name, email and department are required');const d=await query(`INSERT INTO departments(name) VALUES($1) ON CONFLICT(name) DO UPDATE SET name=EXCLUDED.name RETURNING id`,[u.department.trim()]);return query(`INSERT INTO users(name,email,department_id,job_title,manager_email,start_date) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,department_id=EXCLUDED.department_id,job_title=EXCLUDED.job_title,manager_email=EXCLUDED.manager_email,start_date=EXCLUDED.start_date,active=true RETURNING id,name,email`,[u.name.trim(),u.email.trim().toLowerCase(),d.rows[0].id,u.jobTitle||null,u.managerEmail||null,u.startDate||null])}
+app.post('/api/users',requireAuth,async(req,res)=>{try{const x=await upsertUser(req.body||{});res.status(201).json({user:x.rows[0]})}catch(e){res.status(400).json({error:e.message||'Could not create user'})}});
+app.post('/api/users/bulk',requireAuth,async(req,res)=>{const users=Array.isArray(req.body?.users)?req.body.users:[];if(!users.length||users.length>500)return res.status(400).json({error:'Upload between 1 and 500 users'});let created=0,errors=[];for(const [i,u]of users.entries()){try{await upsertUser(u);created++}catch(e){errors.push({row:i+2,error:e.message})}}res.json({created,failed:errors.length,errors})});
+app.use((_req,res)=>res.status(404).json({error:'Not found'}));app.listen(port,()=>console.log(`Homey Work Insights API listening on ${port}`));
